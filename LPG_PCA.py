@@ -14,10 +14,13 @@ from skimage.metrics import structural_similarity as ssim
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction import image
 
+from metrics import calculate_psnr, calculate_ssim
+from utils import add_noise, load_gray_img
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input_dir", type=Path, default="./input")
+    parser.add_argument("--input_dir", type=Path, default="./input/clean")
     parser.add_argument("--sigma", type=int, help = "noise level of images")
     parser.add_argument("--output_dir", type=Path, default="./output")
 
@@ -25,9 +28,9 @@ def parse_args():
     parser.add_argument("--K", type=int, default=3)
     parser.add_argument("--L", type=int, default=9)
     parser.add_argument("--T", help = "threshold", type=int, default=20)
-    parser.add_argument("--CM", help = "number of training samples", type=int, default=10)
-    parser.add_argument("--N_PC", help = "number of principal components remained", type=int, default=3)
-    parser.add_argument("c_s", help="estimation error of noiseless images", default=0.35, type=float)
+    parser.add_argument("--c", type= int, default=8)
+    # parser.add_argument("--n", help = "number of training samples", type=int, default=3)
+    parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, type=float)
 
     args = parser.parse_args()
     return args
@@ -155,7 +158,7 @@ def get_all_training_features(img, x, y, K, L):
     dim1, dim2 = img.shape
     half_l = L // 2
 
-    # deal with edges
+    # deal with edgesf
     x_min = 0 if x-half_l < 0 else x-half_l
     x_max = dim1 if x+half_l > dim1 else x+half_l
     y_min = 0 if y-half_l < 0 else y-half_l
@@ -167,21 +170,24 @@ def get_all_training_features(img, x, y, K, L):
     ).reshape(-1, K, K)
     return training_features
 
-def get_PCA_training_features(n, training_features, target):
+def get_PCA_training_features(c, K, training_features, target):
     # Sort by MSE
-    square_diff = (training_features - target[None, :, :])**2
-    sort_indexes = np.argsort(square_diff, axis=None)
+    n = c * (K ** 2)
+    square_diff = np.mean(
+        (training_features - target)**2, axis=(1,2)
+    )
+    sort_indexes = np.argsort(square_diff)
 
     # (n, K^2)
-    training_features_PCA = training_features[sort_indexes[:n+1]] \
-        .reshape(n+1, target.shape[0]**2)
+    training_features_PCA = training_features[sort_indexes[:n]] \
+        .reshape(n, target.shape[0]**2)
     return training_features_PCA
 
 def PCA_denoise(X, sigma):
     
     X = X.swapaxes(1, 0) # (K^2, n)
-    X_mean = np.mean(X, axis=1)
-    X = X - X_mean
+    X_mean = np.mean(X, axis=1)   # (K^2, )
+    X = X - X_mean.reshape(-1, 1)
 
     cov_sigma = sigma**2 * np.eye(X.shape[0], X.shape[0]) # sigma^2 * I, (K^2, K^2)
     sigma_X = np.cov(X) # sigma_x^bar, (K^2, K^2)
@@ -205,42 +211,45 @@ def PCA_denoise(X, sigma):
         )/(np.diag(phi_y_bar) + np.diag(sigma_v)) # 3.12
     
     # dim = (K^2, )
-    denoise_X = PX.T @ (Y_v_bar[0, :] * shrinkage_coef) # 3.13
+    # print(shrinkage_coef.shape, Y_v_bar.shape, PX.shape)
+    denoise_X = PX.T @ (Y_v_bar[:, 0] * shrinkage_coef) # 3.13
+    # print(denoise_X.shape, X_mean.shape)
     denoise_X += X_mean
-    denoise_pixel = denoise_X[denoise_X.shape[1]//2] # retrieves the element in the middle of the X1 array
+    # print(denoise_X.shape)
+    # print(denoise_X)
+    denoise_pixel = denoise_X[denoise_X.shape[0]//2] # retrieves the element in the middle of the X1 array
     return denoise_pixel
 
-def denoise_one_pixel(img, x, y, K, L, n, sigma):
+def denoise_one_pixel(img, x, y, K, L, c, sigma):
     half_k = K // 2
     half_l = L // 2
 
     # Block centered around x,y, dim = (K, K)
-    target_block = get_block_for_one_pixel(img, x, y, half_k, half_l, half_k)
+    target_block = get_block_for_one_pixel(img, x, y, half_k)
     
     # All Training features, dim = (-1, K, K)
     all_training_features = get_all_training_features(img, x, y, K, L)
 
     # sort and select top n, dim = (n, K^2)
-    PCA_features = get_PCA_training_features(n, all_training_features, target_block)
+    PCA_features = get_PCA_training_features(c, K, all_training_features, target_block)
 
     # denoise, dim = (K^2, )
     denoise_pixel = PCA_denoise(PCA_features, sigma)
     return denoise_pixel
 
-def denoise_image(img, K, L, n, sigma):
-
+def denoise_image(img, K, L, c, sigma): 
+    half_k = K//2
     out_img = np.copy(img)
-    for x in range(img.shape[0]):
-        for y in range(img.shape[1]):
-            out_img[x, y] = denoise_one_pixel(img, x, y, K, L, n, sigma)
+    for x in range(half_k, img.shape[0] - half_k):
+        for y in range(half_k, img.shape[1] - half_k):
+            out_img[x, y] = denoise_one_pixel(img, x, y, K, L, c, sigma)
     
-    return denoise_image
+    return out_img
 
 def main():
     args = parse_args()
 
-    input_dir = os.path.join(args.input_dir, f"gauss_{args.sigma}")
-    in_images_rel = [f for f in os.listdir(input_dir)]
+    in_images_rel = [f for f in os.listdir(args.input_dir)]
     # in_images_abs = [os.path.join(input_dir, f) for f in in_images_rel]
 
     out_dir = os.path.join(args.output_dir, f"gauss_{args.sigma}")
@@ -248,40 +257,45 @@ def main():
     x = time.time() 
     for img_path in in_images_rel:
         print(f"Denoising {img_path}", end = " ,")
-        noisy_img = io.imread(
-            os.path.join(input_dir, img_path)
-            )
-        noisy_img = noisy_img.astype(float)
+        img_path = os.path.join(args.input_dir, img_path)
+        clean_img = io.imread(img_path)
+        noisy_img = add_noise(clean_img, args.sigma)
+
+        print(clean_img.shape)
+        print(noisy_img.shape)
 
         stage_1_denoised_img = denoise_image(
             noisy_img, args.K, args.L, 
-            args.N_PC, args.sigma
+            args.c, args.sigma
             )
         
+        ## TODO: problem?
         sigma_2 = args.c_s * np.sqrt(
             args.sigma**2 - np.mean(
                 (noisy_img - stage_1_denoised_img)**2
                 )
             )
         
+        # print(sigma_2)
+        
         stage_2_denoised_img = denoise_image(
             stage_1_denoised_img, args.K, args.L, 
-            args.N_PC, sigma_2
+            args.c, sigma_2
             )
-        out_path_1 = os.path.join(out_dir, "stage_1", img_path)
-        out_path_2 = os.path.join(out_dir, "stage_2", img_path)
+        
+        out_path_1 = os.path.join(out_dir, f"stage_1_{img_path}")
+        out_path_2 = os.path.join(out_dir, f"stage_2_{img_path}")
 
         cv2.imwrite(out_path_1, stage_1_denoised_img)      
         cv2.imwrite(out_path_2, stage_2_denoised_img)
         
         y = time.time()
         print(f"{round((y-x)/60, 4)} mins used")
-
         # calculate PSNR, SSIM
-        psnr_stage_1 = psnr(noisy_img, stage_1_denoised_img)
-        psnr_stage_2 = psnr(noisy_img, stage_2_denoised_img)
-        ssim_stage_1 = ssim(noisy_img, stage_1_denoised_img)
-        ssim_stage_2 = ssim(noisy_img, stage_2_denoised_img)
+        psnr_stage_1 = calculate_psnr(clean_img, stage_1_denoised_img)
+        psnr_stage_2 = calculate_psnr(clean_img, stage_2_denoised_img)
+        ssim_stage_1 = calculate_ssim(clean_img, stage_1_denoised_img)
+        ssim_stage_2 = calculate_ssim(clean_img, stage_2_denoised_img)
 
         print(f"First stage denoise result - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1}")
         print(f"Second stage denoise result - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2}")

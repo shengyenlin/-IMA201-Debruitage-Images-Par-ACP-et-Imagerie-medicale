@@ -1,8 +1,7 @@
 python3 LPG_PCA.py \
     --sigma 10 \
     --K 3 \
-    --L 9 \
+    --L 20 \
     --T 20 \
-    --CM 10 \
-    --N_PC 3 \
+    --c 8 \
     --c_s 0.35;
