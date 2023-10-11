@@ -2,6 +2,22 @@ import math
 import numpy as np
 import cv2
 
+import skimage.metrics as metrics
+
+def skim_compare_psnr(img1, img2):
+    psnr = metrics.peak_signal_noise_ratio(
+        img1, img2
+        )
+    return psnr
+
+def skim_compare_ssim(img1, img2):
+    ssim = metrics.structural_similarity(
+        img1, img2,
+        sigma=1.5, data_range=255,
+        use_sample_covariance=False, gaussian_weights=True
+        )
+    return ssim
+
 def calculate_ssim(img1, img2):
     '''calculate SSIM
     the same outputs as MATLAB's

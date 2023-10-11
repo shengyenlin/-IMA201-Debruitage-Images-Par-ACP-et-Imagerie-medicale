@@ -2,15 +2,16 @@ import numpy as np
 import cv2
 
 
+
 def load_gray_img(filepath):
     img = cv2.imread(
         filepath, cv2.IMREAD_GRAYSCALE
         )
-    print(img.shape)
+    # print(img.shape)
     img = np.expand_dims(
         img, axis=2
     )
-    print(img.shape)
+    # print(img.shape)
     return img
 
 
