@@ -21,16 +21,16 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--input_dir", type=Path, default="./input/clean")
-    parser.add_argument("--sigma", type=int, help = "noise level of images")
+    parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images")
     parser.add_argument("--output_dir", type=Path, default="./output")
 
     # hyperparameter
     parser.add_argument("--K", type=int, default=3)
     parser.add_argument("--L", type=int, default=9)
-    parser.add_argument("--T", help = "threshold", type=int, default=20)
     parser.add_argument("--c", type= int, default=8)
-    # parser.add_argument("--n", help = "number of training samples", type=int, default=3)
     parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, type=float)
+
+    
 
     args = parser.parse_args()
     return args
@@ -101,6 +101,7 @@ def get_block_for_one_pixel(img, x, y, half_k):
     return block
 
 def get_all_training_features(img, x, y, K, L):
+    print(img.shape)
     dim1, dim2 = img.shape
     half_l = L // 2
 
@@ -174,8 +175,8 @@ def PCA_denoise(X, sigma):
     # dim = (K^2, )
     shrinkage_coef = np.diag(
         phi_y_bar
+        # the cov matrix of centralized data matrix is the same as that of original data matrix
         )/(np.diag(phi_y_bar) + np.diag(sigma_y_v_bar)) # 3.12
-    # )/(np.diag(phi_y_bar) + np.diag(sigma_v)) # 3.12
     
     # dim = (K^2, )
     denoise_X = PX.T @ (Y_v_bar * shrinkage_coef.reshape(-1, 1)) # 3.13
@@ -217,57 +218,65 @@ def main():
     args = parse_args()
 
     in_images_rel = [f for f in os.listdir(args.input_dir)]
-    # in_images_abs = [os.path.join(input_dir, f) for f in in_images_rel]
 
-    out_dir = os.path.join(args.output_dir, f"gauss_{args.sigma}")
-    os.makedirs(out_dir, exist_ok=True)
-    x = time.time() 
-    for img_path in in_images_rel:
-        print(f"Denoising {img_path}")
-        img_path = os.path.join(args.input_dir, img_path)
-        clean_img = io.imread(img_path)
-        noisy_img = add_noise(clean_img, args.sigma)
+    for sigma in args.sigmas:
 
-        stage_1_denoised_img = denoise_image(
-            noisy_img, args.K, args.L, 
-            args.c, args.sigma
-            )
-        
-        ## TODO: problem?
-        sigma_2 = args.c_s * np.sqrt(
-            args.sigma**2 - np.mean(
-                (noisy_img - stage_1_denoised_img)**2
+        out_dir = os.path.join(args.output_dir, f"gauss_{args.sigma}")
+        os.makedirs(out_dir, exist_ok=True)
+        x = time.time() 
+        for img_path in in_images_rel:
+
+            print(f"Denoising {img_path}")
+            in_path = os.path.join(args.input_dir, img_path)
+            clean_img = io.imread(in_path)
+            noisy_img = add_noise(clean_img, args.sigma)
+
+            # TODO: storenoisy image
+
+            # psnr = skim_compare_psnr(clean_img[:, :, 0], noisy_img[:, :, 0])
+            # ssim = skim_compare_ssim(clean_img[:, :, 0], noisy_img[:, :, 0])
+            # print(f"PSNR: {psnr}, SSIM: {ssim}")
+            # exit()      
+
+
+            stage_1_denoised_img = denoise_image(
+                noisy_img, args.K, args.L, 
+                args.c, args.sigma
                 )
-            )
-        
-        # print(sigma_2)
-        
-        stage_2_denoised_img = denoise_image(
-            stage_1_denoised_img, args.K, args.L, 
-            args.c, sigma_2
-            )
-        
-        out_path_1 = os.path.join(out_dir, f"stage_1_{img_path}")
-        out_path_2 = os.path.join(out_dir, f"stage_2_{img_path}")
+            
+            ## TODO: problem?
+            sigma_2 = args.c_s * np.sqrt(
+                args.sigma**2 - np.mean(
+                    (noisy_img - stage_1_denoised_img)**2
+                    )
+                )
+            
+            # print(sigma_2)
+            
+            stage_2_denoised_img = denoise_image(
+                stage_1_denoised_img, args.K, args.L, 
+                args.c, sigma_2
+                )
+            
+            out_path_1 = os.path.join(out_dir, f"stage_1_{img_path}")
+            out_path_2 = os.path.join(out_dir, f"stage_2_{img_path}")
 
-        cv2.imwrite(out_path_1, stage_1_denoised_img)      
-        cv2.imwrite(out_path_2, stage_2_denoised_img)
-        
-        y = time.time()
-        print(f"{round((y-x)/60, 4)} mins used")
+            cv2.imwrite(out_path_1, stage_1_denoised_img)      
+            cv2.imwrite(out_path_2, stage_2_denoised_img)
+            
+            y = time.time()
+            print(f"{round((y-x)/60, 4)} mins used")
 
-        # print(stage_1_denoised_img)
+            # print(stage_1_denoised_img)
 
-        # calculate PSNR, SSIM
-        psnr_stage_1 = skim_compare_psnr(clean_img, stage_1_denoised_img)
-        psnr_stage_2 = skim_compare_psnr(clean_img, stage_2_denoised_img)
-        ssim_stage_1 = skim_compare_ssim(clean_img, stage_1_denoised_img)
-        ssim_stage_2 = skim_compare_ssim(clean_img, stage_2_denoised_img)
+            # calculate PSNR, SSIM
+            psnr_stage_1 = skim_compare_psnr(clean_img, stage_1_denoised_img)
+            psnr_stage_2 = skim_compare_psnr(clean_img, stage_2_denoised_img)
+            ssim_stage_1 = skim_compare_ssim(clean_img, stage_1_denoised_img)
+            ssim_stage_2 = skim_compare_ssim(clean_img, stage_2_denoised_img)
 
-        print(f"First stage denoise result - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1}")
-        print(f"Second stage denoise result - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2}")
-
-        exit()
+            print(f"First stage denoise result - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1}")
+            print(f"Second stage denoise result - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2}")
 
 if __name__ == "__main__":
     main() 

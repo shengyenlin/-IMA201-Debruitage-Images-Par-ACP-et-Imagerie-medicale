@@ -1,0 +1,9 @@
+Start denoising with sigma = 10
+Hyerparameter: K = 3, L = 19, c = 8
+0.9714 mins used
+Set12_1.jpeg | First stage - PNSR: 29.734, SSIM: 0.771 | Second stage - PNSR: 27.859, SSIM: 0.818
+1.9329 mins used
+Tower.tif | First stage - PNSR: 21.335, SSIM: 0.709 | Second stage - PNSR: 21.343, SSIM: 0.785
+Hyerparameter: K = 3, L = 20, c = 8
+0.9897 mins used
+Set12_1.jpeg | First stage - PNSR: 29.837, SSIM: 0.767 | Second stage - PNSR: 28.12, SSIM: 0.815

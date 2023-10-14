@@ -5,6 +5,9 @@ import argparse
 import os
 from pathlib import Path
 import time
+from itertools import product
+
+import logging
 
 import numpy as np
 import cv2
@@ -21,16 +24,16 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--input_dir", type=Path, default="./input/clean")
-    parser.add_argument("--sigma", type=int, help = "noise level of images")
+    parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images")
     parser.add_argument("--output_dir", type=Path, default="./output")
 
     # hyperparameter
-    parser.add_argument("--K", type=int, default=3)
-    parser.add_argument("--L", type=int, default=9)
-    parser.add_argument("--T", help = "threshold", type=int, default=20)
-    parser.add_argument("--c", type= int, default=8)
-    # parser.add_argument("--n", help = "number of training samples", type=int, default=3)
+    parser.add_argument("--Ks", type=int, nargs="+", default=3)
+    parser.add_argument("--Ls", type=int, nargs="+", default=9)
+    parser.add_argument("--cs", type= int, nargs="+", default=8)
     parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, type=float)
+
+    parser.add_argument("--store_image", action='store_true')
 
     args = parser.parse_args()
     return args
@@ -55,47 +58,6 @@ def LPG_error(array1, array2):
         err += (array1[i] - array2[i])**2
     return err/len(array1)
 
-def select_training_samples(x,y,k,l,t,image,cm):
-    # select training samples for the central pixel (x,y)
-    # with the window size k and l, threshold t
-    l_training_samples = []
-    l_error = []
-    halfk = k // 2
-    halfl = l // 2
-
-    # TODO: don't need to compute the center block every time
-    for i in range(y-halfl+halfk, y+halfl-halfk+1):    #y
-        for j in range(x-halfl+halfk, x+halfl-halfk+1):    #x
-            error = LPG_error(
-                vector_pixel(j,i,k,image), 
-                vector_pixel(x,y,k,image)
-                )
-            if j!= x or i != y:
-                l_training_samples.append(vector_pixel(j,i,k,image))
-                l_error.append(error)
-    
-    pairs = zip(l_training_samples, l_error)
-    
-    # Sort the pairs based on the values in l_error
-    sorted_pairs = sorted(pairs, key=lambda x: x[1])
-    
-    # Unpack the sorted pairs to get the sorted l_training_samples
-    sorted_samples = [pair[0] for pair in sorted_pairs]
-    sorted_error = [pair[1] for pair in sorted_pairs]
-    
-    #find the largest error in error list that are smaller than T
-    index_error = 0
-    while sorted_error[index_error] < t and index_error < len(sorted_error)-1:
-        index_error += 1
-            
-    # make sure we have at least cm training examples
-    if index_error < cm:
-        sorted_samples = sorted_samples[:cm]
-    else:
-        sorted_samples = sorted_samples[:index_error]
-    
-    return np.array(sorted_samples)
-
 def get_block_for_one_pixel(img, x, y, half_k):
     block = img[x-half_k: x+half_k+1, y-half_k: y+half_k+1]
     return block
@@ -104,24 +66,12 @@ def get_all_training_features(img, x, y, K, L):
     dim1, dim2 = img.shape
     half_l = L // 2
 
-    # print("position: ", x, y)
-
     # deal with edges
     x_min = 0 if x-half_l < 0 else x-half_l
     x_max = dim1 if x+half_l > dim1 else x+half_l
     y_min = 0 if y-half_l < 0 else y-half_l
     y_max = dim2 if y+half_l > dim2 else y+half_l
 
-
-    # halfK = K // 2
-    # rng = half_l - halfK
-    
-    # x_min = max(K, x - rng) - halfK
-    # x_max = min(x + rng + 1, dim2 - K) + halfK
-    # y_min = max(K, y - rng) - halfK
-    # y_max = min(y + rng + 1, dim1 - K) + halfK
-    
-    # print(x_min, x_max, y_min, y_max)
 
     training_block = img[
         x_min:x_max, y_min:y_max
@@ -133,8 +83,8 @@ def get_all_training_features(img, x, y, K, L):
     return training_features
 
 def get_PCA_training_features(c, K, training_features, target):
-    # Sort by MSE
 
+    # Sort by MSE
     cm = c * (K ** 2)
     n = cm if cm < training_features.shape[0] else training_features.shape[0]
 
@@ -213,7 +163,7 @@ def denoise_image(img, K, L, c, sigma):
     
     return out_img
 
-def two_stage_denoise_image(img, k, l, c, c_s, sigma):
+def denoise_image_gray_scale_two_stage(img, k, l, c, c_s, sigma):
     stage_1_denoised_img = denoise_image(img, k, l, c, sigma)
     sigma_2 = c_s * np.sqrt(sigma**2 - np.mean(
         (img - stage_1_denoised_img)**2)
@@ -221,25 +171,30 @@ def two_stage_denoise_image(img, k, l, c, c_s, sigma):
     stage_2_denoised_img = denoise_image(stage_1_denoised_img, k, l, c, sigma_2)
     return stage_1_denoised_img, stage_2_denoised_img
 
-def denoise_1D_or_3D_image(img, k, l, c, c_s, sigma):
-    if img.ndim == 2:    #grey image
-        return two_stage_denoise_image(img, k, l, c, c_s, sigma)
-    else:    #3 channels image
-        img1 = img[:,:,0]
-        img2 = img[:,:,1]
-        img3 = img[:,:,2]
-        stage_1_denoised_img1, stage_2_denoised_img1 = two_stage_denoise_image(img1, k, l, c, c_s, sigma)
-        stage_1_denoised_img2, stage_2_denoised_img2 = two_stage_denoise_image(img2, k, l, c, c_s, sigma)
-        stage_1_denoised_img3, stage_2_denoised_img3 = two_stage_denoise_image(img3, k, l, c, c_s, sigma)
+def denoise_image_2D(img, k, l, c, c_s, sigma):
+    if img.ndim == 2:    # grey image
+        return denoise_image_gray_scale_two_stage (img, k, l, c, c_s, sigma)
+    else:    # 3 channels image
+        img_r = img[:,:,0]
+        img_g = img[:,:,1]
+        img_b = img[:,:,2]
+
+        stage_1_denoised_img_r, stage_2_denoised_img_r = \
+            denoise_image_gray_scale_two_stage(img_r, k, l, c, c_s, sigma)
+        stage_1_denoised_img_g, stage_2_denoised_img_g = \
+            denoise_image_gray_scale_two_stage(img_g, k, l, c, c_s, sigma)
+        stage_1_denoised_img_b, stage_2_denoised_img_b = \
+            denoise_image_gray_scale_two_stage(img_b, k, l, c, c_s, sigma)
+
         stage_1_denoised_img = np.zeros(img.shape, dtype=np.uint8)
-        stage_1_denoised_img[:,:,2] = stage_1_denoised_img1
-        stage_1_denoised_img[:,:,1] = stage_1_denoised_img2
-        stage_1_denoised_img[:,:,0] = stage_1_denoised_img3
+        stage_1_denoised_img[:,:,2] = stage_1_denoised_img_r
+        stage_1_denoised_img[:,:,1] = stage_1_denoised_img_g
+        stage_1_denoised_img[:,:,0] = stage_1_denoised_img_b
 
         stage_2_denoised_img = np.zeros(img.shape, dtype=np.uint8)
-        stage_2_denoised_img[:,:,2] = stage_2_denoised_img1
-        stage_2_denoised_img[:,:,1] = stage_2_denoised_img2
-        stage_2_denoised_img[:,:,0] = stage_2_denoised_img3   
+        stage_2_denoised_img[:,:,2] = stage_2_denoised_img_r
+        stage_2_denoised_img[:,:,1] = stage_2_denoised_img_g
+        stage_2_denoised_img[:,:,0] = stage_2_denoised_img_b  
 
         return stage_1_denoised_img, stage_2_denoised_img
 
@@ -247,80 +202,66 @@ def denoise_1D_or_3D_image(img, k, l, c, c_s, sigma):
 #     if clean_image.ndim == 2:    #grey image
 #         return skim_compare_psnr(clean_image, denoise_image), skim_compare_ssim(clean_image, denoise_image)
 #     else:   #3 channels image
-
-
     
 
 def main():
+
+    # Configure the logging
+    logging.basicConfig(
+        level=logging.INFO, filename = "experiment_log.txt", 
+        format='%(message)s', filemode='w')
+
     args = parse_args()
-
     in_images_rel = [f for f in os.listdir(args.input_dir)]
-    # in_images_abs = [os.path.join(input_dir, f) for f in in_images_rel]
 
-    out_dir = os.path.join(args.output_dir, f"gauss_{args.sigma}")
-    os.makedirs(out_dir, exist_ok=True)
-    x = time.time() 
-    for img_path in in_images_rel:
-        print(f"Denoising {img_path}")
-        in_path = os.path.join(args.input_dir, img_path)
-        clean_img = io.imread(in_path)
-        noisy_img = add_noise(clean_img, args.sigma)
+    hyper_param_product = product(args.Ks, args.Ls, args.cs)
 
-        # stage_1_denoised_img = denoise_image(
-        #     noisy_img, args.K, args.L, 
-        #     args.c, args.sigma
-        #     )
-        
-        # ## TODO: problem?
-        # sigma_2 = args.c_s * np.sqrt(
-        #     args.sigma**2 - np.mean(
-        #         (noisy_img - stage_1_denoised_img)**2
-        #         )
-        #     )
-        
-        # # print(sigma_2)
-        
-        # stage_2_denoised_img = denoise_image(
-        #     stage_1_denoised_img, args.K, args.L, 
-        #     args.c, sigma_2
-        #     )
+    for sigma in args.sigmas:
+        logging.info(f"Start denoising with sigma = {sigma}")
+        out_dir = os.path.join(args.output_dir, f"gauss_{sigma}")
+        os.makedirs(out_dir, exist_ok=True)
 
-        # stage_1_denoised_img, stage_2_denoised_img = two_stage_denoise_image(
-        #     noisy_img, args.K, args.L, args.c_s, args.sigma
-        # )
+        for K, L, c in hyper_param_product:
+            logging.info(f"Hyerparameter: K = {K}, L = {L}, c = {c}")
 
-        stage_1_denoised_img, stage_2_denoised_img = denoise_1D_or_3D_image(
-            noisy_img, args.K, args.L, args.c, args.c_s, args.sigma
-        )        
-        
-        out_path_1 = os.path.join(out_dir, f"stage_1_{img_path}")
-        out_path_2 = os.path.join(out_dir, f"stage_2_{img_path}")
+            x = time.time() 
+            for img_path in in_images_rel:
 
-        print(out_path_1)
-        print(out_path_2)
+                in_path = os.path.join(args.input_dir, img_path)
+                clean_img = io.imread(in_path)
+                noisy_img = add_noise(clean_img, sigma)
 
-        cv2.imwrite(out_path_1, stage_1_denoised_img)      
-        cv2.imwrite(out_path_2, stage_2_denoised_img)
-        
-        y = time.time()
-        print(f"{round((y-x)/60, 4)} mins used")
 
-        # print(stage_1_denoised_img)
+                stage_1_denoised_img, stage_2_denoised_img = denoise_image_2D(
+                    noisy_img, K, L, c, args.c_s, sigma
+                )        
+                
+                y = time.time()
+                n_axis = clean_img.ndim - 1
 
-        # calculate PSNR, SSIM
-        # if clean_img.ndim == 2:
-        #     n_aixs = 1
-        # else:
-        #     n_axis = 3
-        n_axis = clean_img.ndim - 1
+                psnr_stage_1 = round(
+                    skim_compare_psnr(clean_img, stage_1_denoised_img), 3
+                    )
+                psnr_stage_2 = round(
+                    skim_compare_psnr(clean_img, stage_2_denoised_img), 3
+                )
+                ssim_stage_1 = round(
+                    skim_compare_ssim(clean_img, stage_1_denoised_img, n_axis), 3
+                )
+                ssim_stage_2 = round(
+                    skim_compare_ssim(clean_img, stage_2_denoised_img, n_axis), 3
+                )
 
-        psnr_stage_1 = skim_compare_psnr(clean_img, stage_1_denoised_img)
-        psnr_stage_2 = skim_compare_psnr(clean_img, stage_2_denoised_img)
-        ssim_stage_1 = skim_compare_ssim(clean_img, stage_1_denoised_img, n_axis)
-        ssim_stage_2 = skim_compare_ssim(clean_img, stage_2_denoised_img, n_axis)
 
-        print(f"First stage denoise result - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1}")
-        print(f"Second stage denoise result - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2}")
+                logging.info(f"{img_path} | First stage - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1} | Second stage - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2} | {round((y-x)/60, 4)} mins used")
+                if args.store_image:
+                    out_path_noisy = os.path.join(out_dir, f"noisy_{img_path}")
+                    out_path_1 = os.path.join(out_dir, f"stage_1_k_{K}_l_{L}_c_{c}_{img_path}")
+                    out_path_2 = os.path.join(out_dir, f"stage_2_k_{K}_l_{L}_c_{c}_{img_path}")
+
+                    cv2.imwrite(out_path_noisy, noisy_img)
+                    cv2.imwrite(out_path_1, stage_1_denoised_img)      
+                    cv2.imwrite(out_path_2, stage_2_denoised_img)
 
 if __name__ == "__main__":
     main() 
