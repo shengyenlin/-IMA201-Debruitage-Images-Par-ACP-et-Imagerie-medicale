@@ -1,0 +1,67 @@
+Start denoising with sigma = 10
+Hyerparameter: K = 5, L = 19, c = 8
+01.png | First stage - PNSR: 25.034, SSIM: 0.76 | Second stage - PNSR: nan, SSIM: nan | 1.6563 mins used
+03.png | First stage - PNSR: 26.152, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 3.2092 mins used
+02.png | First stage - PNSR: 27.447, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 4.8073 mins used
+06.png | First stage - PNSR: 25.218, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 6.463 mins used
+12.png | First stage - PNSR: 27.074, SSIM: 0.773 | Second stage - PNSR: nan, SSIM: nan | 12.9746 mins used
+07.png | First stage - PNSR: 23.332, SSIM: 0.765 | Second stage - PNSR: nan, SSIM: nan | 14.867 mins used
+11.png | First stage - PNSR: 27.874, SSIM: 0.778 | Second stage - PNSR: nan, SSIM: nan | 21.2943 mins used
+05.png | First stage - PNSR: 23.219, SSIM: 0.779 | Second stage - PNSR: nan, SSIM: nan | 22.9663 mins used
+04.png | First stage - PNSR: 25.146, SSIM: 0.794 | Second stage - PNSR: nan, SSIM: nan | 24.5162 mins used
+10.png | First stage - PNSR: 27.115, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 33.5011 mins used
+09.png | First stage - PNSR: 26.665, SSIM: 0.786 | Second stage - PNSR: nan, SSIM: nan | 40.2553 mins used
+08.png | First stage - PNSR: 28.631, SSIM: 0.778 | Second stage - PNSR: 25.95, SSIM: 0.811 | 46.8183 mins used
+Hyerparameter: K = 5, L = 20, c = 8
+01.png | First stage - PNSR: 26.573, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 2.0101 mins used
+03.png | First stage - PNSR: 27.831, SSIM: 0.793 | Second stage - PNSR: nan, SSIM: nan | 3.8283 mins used
+02.png | First stage - PNSR: 28.975, SSIM: 0.789 | Second stage - PNSR: 26.279, SSIM: 0.821 | 5.8586 mins used
+06.png | First stage - PNSR: 26.63, SSIM: 0.792 | Second stage - PNSR: nan, SSIM: nan | 7.858 mins used
+12.png | First stage - PNSR: 28.353, SSIM: 0.789 | Second stage - PNSR: 25.62, SSIM: 0.776 | 16.2398 mins used
+07.png | First stage - PNSR: 25.194, SSIM: 0.792 | Second stage - PNSR: nan, SSIM: nan | 18.1988 mins used
+11.png | First stage - PNSR: 29.277, SSIM: 0.793 | Second stage - PNSR: 26.823, SSIM: 0.794 | 26.0339 mins used
+05.png | First stage - PNSR: 24.947, SSIM: 0.808 | Second stage - PNSR: nan, SSIM: nan | 27.94 mins used
+04.png | First stage - PNSR: 26.675, SSIM: 0.819 | Second stage - PNSR: nan, SSIM: nan | 29.8932 mins used
+10.png | First stage - PNSR: 28.391, SSIM: 0.794 | Second stage - PNSR: 25.638, SSIM: 0.783 | 37.755 mins used
+09.png | First stage - PNSR: 28.26, SSIM: 0.809 | Second stage - PNSR: 25.34, SSIM: 0.789 | 46.5166 mins used
+08.png | First stage - PNSR: 30.241, SSIM: 0.785 | Second stage - PNSR: 28.112, SSIM: 0.835 | 54.416 mins used
+Hyerparameter: K = 5, L = 21, c = 8
+01.png | First stage - PNSR: 26.573, SSIM: 0.777 | Second stage - PNSR: nan, SSIM: nan | 1.9202 mins used
+03.png | First stage - PNSR: 27.831, SSIM: 0.793 | Second stage - PNSR: nan, SSIM: nan | 3.9404 mins used
+02.png | First stage - PNSR: 28.975, SSIM: 0.789 | Second stage - PNSR: 26.279, SSIM: 0.821 | 5.9748 mins used
+06.png | First stage - PNSR: 26.63, SSIM: 0.792 | Second stage - PNSR: nan, SSIM: nan | 7.9004 mins used
+12.png | First stage - PNSR: 28.353, SSIM: 0.789 | Second stage - PNSR: 25.62, SSIM: 0.776 | 15.4874 mins used
+07.png | First stage - PNSR: 25.194, SSIM: 0.792 | Second stage - PNSR: nan, SSIM: nan | 17.3908 mins used
+11.png | First stage - PNSR: 29.277, SSIM: 0.793 | Second stage - PNSR: 26.823, SSIM: 0.794 | 24.5109 mins used
+05.png | First stage - PNSR: 24.947, SSIM: 0.808 | Second stage - PNSR: nan, SSIM: nan | 26.2779 mins used
+04.png | First stage - PNSR: 26.675, SSIM: 0.819 | Second stage - PNSR: nan, SSIM: nan | 27.9177 mins used
+10.png | First stage - PNSR: 28.391, SSIM: 0.794 | Second stage - PNSR: 25.638, SSIM: 0.783 | 34.6713 mins used
+09.png | First stage - PNSR: 28.26, SSIM: 0.809 | Second stage - PNSR: 25.34, SSIM: 0.789 | 69.2889 mins used
+08.png | First stage - PNSR: 30.241, SSIM: 0.785 | Second stage - PNSR: 28.112, SSIM: 0.835 | 78.1909 mins used
+Hyerparameter: K = 5, L = 22, c = 8
+01.png | First stage - PNSR: 27.401, SSIM: 0.783 | Second stage - PNSR: nan, SSIM: nan | 2.2684 mins used
+03.png | First stage - PNSR: 28.661, SSIM: 0.8 | Second stage - PNSR: 25.756, SSIM: 0.823 | 4.6148 mins used
+02.png | First stage - PNSR: 29.704, SSIM: 0.792 | Second stage - PNSR: 27.241, SSIM: 0.836 | 6.864 mins used
+06.png | First stage - PNSR: 27.439, SSIM: 0.798 | Second stage - PNSR: nan, SSIM: nan | 9.1956 mins used
+12.png | First stage - PNSR: 28.977, SSIM: 0.795 | Second stage - PNSR: 26.414, SSIM: 0.793 | 19.3436 mins used
+07.png | First stage - PNSR: 26.592, SSIM: 0.803 | Second stage - PNSR: nan, SSIM: nan | 21.9882 mins used
+11.png | First stage - PNSR: 29.951, SSIM: 0.798 | Second stage - PNSR: 27.803, SSIM: 0.812 | 32.0153 mins used
+05.png | First stage - PNSR: 26.143, SSIM: 0.824 | Second stage - PNSR: nan, SSIM: nan | 34.6061 mins used
+04.png | First stage - PNSR: 27.564, SSIM: 0.83 | Second stage - PNSR: nan, SSIM: nan | 37.0861 mins used
+10.png | First stage - PNSR: 28.98, SSIM: 0.8 | Second stage - PNSR: 26.364, SSIM: 0.801 | 46.9991 mins used
+09.png | First stage - PNSR: 29.159, SSIM: 0.82 | Second stage - PNSR: 26.43, SSIM: 0.819 | 56.7346 mins used
+08.png | First stage - PNSR: 30.924, SSIM: 0.787 | Second stage - PNSR: 29.217, SSIM: 0.845 | 66.4155 mins used
+Hyerparameter: K = 5, L = 23, c = 8
+01.png | First stage - PNSR: 27.401, SSIM: 0.783 | Second stage - PNSR: nan, SSIM: nan | 2.446 mins used
+03.png | First stage - PNSR: 28.661, SSIM: 0.8 | Second stage - PNSR: 25.756, SSIM: 0.823 | 4.8924 mins used
+02.png | First stage - PNSR: 29.704, SSIM: 0.792 | Second stage - PNSR: 27.241, SSIM: 0.836 | 7.3022 mins used
+06.png | First stage - PNSR: 27.439, SSIM: 0.798 | Second stage - PNSR: nan, SSIM: nan | 9.8322 mins used
+12.png | First stage - PNSR: 28.977, SSIM: 0.795 | Second stage - PNSR: 26.414, SSIM: 0.793 | 28.9396 mins used
+07.png | First stage - PNSR: 26.592, SSIM: 0.803 | Second stage - PNSR: nan, SSIM: nan | 30.9571 mins used
+11.png | First stage - PNSR: 29.951, SSIM: 0.798 | Second stage - PNSR: 27.803, SSIM: 0.812 | 85.0302 mins used
+05.png | First stage - PNSR: 26.143, SSIM: 0.824 | Second stage - PNSR: nan, SSIM: nan | 465.5549 mins used
+04.png | First stage - PNSR: 27.564, SSIM: 0.83 | Second stage - PNSR: nan, SSIM: nan | 521.8958 mins used
+10.png | First stage - PNSR: 28.98, SSIM: 0.8 | Second stage - PNSR: 26.364, SSIM: 0.801 | 541.8139 mins used
+09.png | First stage - PNSR: 29.159, SSIM: 0.82 | Second stage - PNSR: 26.43, SSIM: 0.819 | 550.0735 mins used
+08.png | First stage - PNSR: 30.924, SSIM: 0.787 | Second stage - PNSR: 29.217, SSIM: 0.845 | 557.7424 mins used
+Hyerparameter: K = 6, L = 19, c = 8
