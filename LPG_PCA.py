@@ -229,7 +229,7 @@ def main():
             print(f"Denoising {img_path}")
             in_path = os.path.join(args.input_dir, img_path)
             clean_img = io.imread(in_path)
-            noisy_img = add_noise(clean_img, args.sigma)
+            noisy_img = add_noise(clean_img, sigma)
 
             # TODO: storenoisy image
 

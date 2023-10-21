@@ -18,10 +18,12 @@ from sklearn.decomposition import PCA
 from sklearn.feature_extraction import image
 
 from metrics import calculate_psnr, calculate_ssim, skim_compare_psnr, skim_compare_ssim
-from utils import add_noise, load_gray_img
+from utils import add_noise, load_gray_img, add_noise_skimage
 
 def parse_args():
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("--log_name", type=str, default="experiment_log.txt")
 
     parser.add_argument("--input_dir", type=Path, default="./input/clean")
     parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images")
@@ -148,8 +150,6 @@ def denoise_one_pixel(img, x, y, K, L, c, sigma):
     # sort and select top n, dim = (n, K^2)
     PCA_features = get_PCA_training_features(c, K, all_training_features, target_block)
 
-    # print(PCA_features.shape)
-
     # denoise, dim = (K^2, )
     denoise_pixel = PCA_denoise(PCA_features, sigma)
     return denoise_pixel
@@ -164,10 +164,14 @@ def denoise_image(img, K, L, c, sigma):
     return out_img
 
 def denoise_image_gray_scale_two_stage(img, k, l, c, c_s, sigma):
+
     stage_1_denoised_img = denoise_image(img, k, l, c, sigma)
-    sigma_2 = c_s * np.sqrt(sigma**2 - np.mean(
+
+    # should be sigma ** 2?
+    sigma_2 = c_s * np.sqrt(sigma - np.mean(
         (img - stage_1_denoised_img)**2)
     )
+
     stage_2_denoised_img = denoise_image(stage_1_denoised_img, k, l, c, sigma_2)
     return stage_1_denoised_img, stage_2_denoised_img
 
@@ -198,23 +202,19 @@ def denoise_image_2D(img, k, l, c, c_s, sigma):
 
         return stage_1_denoised_img, stage_2_denoised_img
 
-# def calculate_PSNR_SSIM_1D_or_3D_image(clean_image, denoised_image):
-#     if clean_image.ndim == 2:    #grey image
-#         return skim_compare_psnr(clean_image, denoise_image), skim_compare_ssim(clean_image, denoise_image)
-#     else:   #3 channels image
-    
 
 def main():
 
+    args = parse_args()
+
     # Configure the logging
     logging.basicConfig(
-        level=logging.INFO, filename = "experiment_log.txt", 
+        level=logging.INFO, filename = args.log_name, 
         format='%(message)s', filemode='w')
-
-    args = parse_args()
+    
     in_images_rel = [f for f in os.listdir(args.input_dir)]
 
-    hyper_param_product = product(args.Ks, args.Ls, args.cs)
+    hyper_param_product = list(product(args.Ks, args.Ls, args.cs))
 
     for sigma in args.sigmas:
         logging.info(f"Start denoising with sigma = {sigma}")
@@ -226,17 +226,21 @@ def main():
 
             x = time.time() 
             for img_path in in_images_rel:
+                
+                # normalize noise
+                sigma = sigma/255.0
 
+                # in original code, denoise on normalized image
                 in_path = os.path.join(args.input_dir, img_path)
-                clean_img = io.imread(in_path)
+                clean_img = io.imread(in_path).astype('float64')/255.0
                 noisy_img = add_noise(clean_img, sigma)
-
 
                 stage_1_denoised_img, stage_2_denoised_img = denoise_image_2D(
                     noisy_img, K, L, c, args.c_s, sigma
-                )        
+                )         
                 
                 y = time.time()
+
                 n_axis = clean_img.ndim - 1
 
                 psnr_stage_1 = round(
@@ -251,7 +255,6 @@ def main():
                 ssim_stage_2 = round(
                     skim_compare_ssim(clean_img, stage_2_denoised_img, n_axis), 3
                 )
-
 
                 logging.info(f"{img_path} | First stage - PNSR: {psnr_stage_1}, SSIM: {ssim_stage_1} | Second stage - PNSR: {psnr_stage_2}, SSIM: {ssim_stage_2} | {round((y-x)/60, 4)} mins used")
                 if args.store_image:
