@@ -3,6 +3,6 @@ python3 LPG_PCA_3D.py \
     --Ks 3 \
     --Ls 19 \
     --cs 8 \
-    --c_s 0.35 \
-    --log_name 1021_our_noise_fn_norm.txt \
+    --c_s 0.35 0.5 0.65 \
+    --log_name log.txt \
     --store_image;

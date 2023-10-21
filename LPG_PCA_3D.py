@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--Ks", type=int, nargs="+", default=3)
     parser.add_argument("--Ls", type=int, nargs="+", default=9)
     parser.add_argument("--cs", type= int, nargs="+", default=8)
-    parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, type=float)
+    parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, nargs="+", type=float)
 
     parser.add_argument("--store_image", action='store_true')
 
@@ -214,21 +214,22 @@ def main():
     
     in_images_rel = [f for f in os.listdir(args.input_dir)]
 
-    hyper_param_product = list(product(args.Ks, args.Ls, args.cs))
+    hyper_param_product = list(product(args.Ks, args.Ls, args.cs, args.c_s))
 
     for sigma in args.sigmas:
         logging.info(f"Start denoising with sigma = {sigma}")
         out_dir = os.path.join(args.output_dir, f"gauss_{sigma}")
         os.makedirs(out_dir, exist_ok=True)
 
-        for K, L, c in hyper_param_product:
-            logging.info(f"Hyerparameter: K = {K}, L = {L}, c = {c}")
+        # normalize sigma
+        sigma = sigma/255.0
 
+        for K, L, c, c_s in hyper_param_product:
+            logging.info(f"Hyerparameter: K = {K}, L = {L}, c = {c}, c_s = {c_s}")
+
+            # normalize noise
             x = time.time() 
             for img_path in in_images_rel:
-                
-                # normalize noise
-                sigma = sigma/255.0
 
                 # in original code, denoise on normalized image
                 in_path = os.path.join(args.input_dir, img_path)
@@ -236,7 +237,7 @@ def main():
                 noisy_img = add_noise(clean_img, sigma)
 
                 stage_1_denoised_img, stage_2_denoised_img = denoise_image_2D(
-                    noisy_img, K, L, c, args.c_s, sigma
+                    noisy_img, K, L, c, c_s, sigma
                 )         
                 
                 y = time.time()

@@ -1,0 +1,12 @@
+Start denoising with sigma = 10
+Hyerparameter: K = 3, L = 19, c = 8
+lena.tif | First stage - PNSR: 30.844, SSIM: 0.907 | Second stage - PNSR: 30.011, SSIM: 0.929 | 0.3343 mins used
+Start denoising with sigma = 20
+Hyerparameter: K = 3, L = 19, c = 8
+lena.tif | First stage - PNSR: 25.962, SSIM: 0.742 | Second stage - PNSR: 27.408, SSIM: 0.839 | 0.3372 mins used
+Start denoising with sigma = 30
+Hyerparameter: K = 3, L = 19, c = 8
+lena.tif | First stage - PNSR: 22.665, SSIM: 0.582 | Second stage - PNSR: 24.96, SSIM: 0.727 | 0.3338 mins used
+Start denoising with sigma = 40
+Hyerparameter: K = 3, L = 19, c = 8
+lena.tif | First stage - PNSR: 20.236, SSIM: 0.454 | Second stage - PNSR: 22.896, SSIM: 0.618 | 0.3271 mins used
