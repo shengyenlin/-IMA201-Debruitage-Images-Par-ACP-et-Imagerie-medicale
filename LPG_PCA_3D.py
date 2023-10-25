@@ -6,19 +6,21 @@ import os
 from pathlib import Path
 import time
 from itertools import product
+import nibabel as nib
 
 import logging
 
 import numpy as np
 import cv2
 import skimage.io as io
+from skimage.util.shape import view_as_windows
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction import image
 
 from metrics import calculate_psnr, calculate_ssim, skim_compare_psnr, skim_compare_ssim
-from utils import add_noise, load_gray_img, add_noise_skimage
+from utils import add_noise, load_gray_img, add_noise_skimage, MinMaxScaler3D
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -35,6 +37,8 @@ def parse_args():
     parser.add_argument("--cs", type= int, nargs="+", default=8)
     parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, nargs="+", type=float)
 
+    # special setting
+    parser.add_argument("--layer_by_layer", action='store_true')
     parser.add_argument("--store_image", action='store_true')
 
     args = parser.parse_args()
@@ -60,13 +64,29 @@ def LPG_error(array1, array2):
         err += (array1[i] - array2[i])**2
     return err/len(array1)
 
-def get_block_for_one_pixel(img, x, y, half_k):
-    block = img[x-half_k: x+half_k+1, y-half_k: y+half_k+1]
+def get_block_for_one_pixel(img, x, y, z, half_k):
+    if z is not None:
+        block = img[
+            x-half_k: x+half_k+1, 
+            y-half_k: y+half_k+1,
+            z-half_k: z+half_k+1
+            ]
+        
+    else:
+        block = img[
+            x-half_k: x+half_k+1, 
+            y-half_k: y+half_k+1
+            ]
     return block
 
-def get_all_training_features(img, x, y, K, L):
-    dim1, dim2 = img.shape
+def get_all_training_features(img, x, y, z, K, L):
     half_l = L // 2
+
+
+    if z is not None:
+        dim1, dim2, dim3 = img.shape
+    else:   
+        dim1, dim2 = img.shape
 
     # deal with edges
     x_min = 0 if x-half_l < 0 else x-half_l
@@ -74,32 +94,60 @@ def get_all_training_features(img, x, y, K, L):
     y_min = 0 if y-half_l < 0 else y-half_l
     y_max = dim2 if y+half_l > dim2 else y+half_l
 
+    if z is not None:
+        z_min = 0 if z-half_l < 0 else z-half_l
+        z_max = dim3 if z+half_l > dim3 else z+half_l
+        training_block = img[
+            x_min:x_max, y_min:y_max, z_min:z_max
+            ]
+        training_features = view_as_windows(
+            training_block, (K, K, K)
+        ).reshape(-1, K, K, K)
 
-    training_block = img[
-        x_min:x_max, y_min:y_max
-        ]
-    training_features= image.extract_patches_2d(
-        training_block, (K, K)
-    ).reshape(-1, K, K)
+    else:
+        training_block = img[
+            x_min:x_max, y_min:y_max
+            ]
+        training_features = image.extract_patches_2d(
+            training_block, (K, K)
+        ).reshape(-1, K, K)
 
     return training_features
 
 def get_PCA_training_features(c, K, training_features, target):
 
-    # Sort by MSE
-    cm = c * (K ** 2)
-    n = cm if cm < training_features.shape[0] else training_features.shape[0]
+    # 2D image denoising
+    if target.ndim == 2:
+        # Sort by MSE
+        cm = c * (K ** 2)
+        n = cm if cm < training_features.shape[0] else training_features.shape[0]
 
-    square_err = ((training_features - target)**2)
-    mse = np.mean(
-        square_err.reshape(-1, K**2), axis=1
-    )
+        square_err = ((training_features - target)**2)
+        mse = np.mean(
+            square_err.reshape(-1, K**2), axis=1
+        )
 
-    sort_indexes = np.argsort(mse)
+        sort_indexes = np.argsort(mse)
 
-    # (n, K^2)
-    training_features_PCA = training_features[sort_indexes[:n], :, :] \
-        .reshape(n, target.shape[0]**2)
+        # (n, K^2)
+        training_features_PCA = training_features[sort_indexes[:n], :, :] \
+            .reshape(n, target.shape[0]**2)
+        
+    # 3D image denoising
+    else:
+        cm = c * (K ** 3)
+        n = cm if cm < training_features.shape[0] else training_features.shape[0]
+
+        square_err = ((training_features - target)**2)
+        mse = np.mean(
+            square_err.reshape(-1, K**3), axis=1
+        )
+
+        sort_indexes = np.argsort(mse)
+        # (n, K^3)
+        training_features_PCA = training_features[sort_indexes[:n], :, :, :] \
+            .reshape(n, target.shape[0]**3)
+
     return training_features_PCA
 
 def PCA_denoise(X, sigma):
@@ -135,73 +183,95 @@ def PCA_denoise(X, sigma):
     denoise_pixel = denoise_X[denoise_X.shape[0]//2, 0] # retrieves the element in the middle of the X1 array
     return denoise_pixel
 
-def denoise_one_pixel(img, x, y, K, L, c, sigma):
+def denoise_one_pixel(img, x, y, z, K, L, c, sigma):
     # x, y = position of denoised pixel
     half_k = K // 2
     half_l = L // 2
 
-    # Block centered around x,y, dim = (K, K)
-    target_block = get_block_for_one_pixel(img, x, y, half_k)
+    # Block centered around x,y, dim = (K, K) or (K, K, K)
+    target_block = get_block_for_one_pixel(img, x, y, z, half_k)
     
-    # All Training features, dim = (-1, K, K)
-    all_training_features = get_all_training_features(img, x, y, K, L)
-    # print(all_training_features.shape)
+    # All Training features, dim = (-1, K, K) or (-1, K, K, K)
+    all_training_features = get_all_training_features(img, x, y, z, K, L)
 
-    # sort and select top n, dim = (n, K^2)
+    # sort and select top n, dim = (n, K^2) or (n, K^3)
     PCA_features = get_PCA_training_features(c, K, all_training_features, target_block)
 
-    # denoise, dim = (K^2, )
+    # denoise, dim = (K^2, ) or (K^3, )
     denoise_pixel = PCA_denoise(PCA_features, sigma)
     return denoise_pixel
 
-def denoise_image(img, K, L, c, sigma): 
+def denoise_image_2D(img, K, L, c, sigma): 
     half_k = K//2
     out_img = np.copy(img)
+    z = None
     for x in range(half_k, img.shape[0] - half_k):
         for y in range(half_k, img.shape[1] - half_k):
-            out_img[x, y] = denoise_one_pixel(img, x, y, K, L, c, sigma)
+            out_img[x, y] = denoise_one_pixel(img, x, y, z, K, L, c, sigma)
     
     return out_img
 
-def denoise_image_gray_scale_two_stage(img, k, l, c, c_s, sigma):
+def denoise_image_3D(img, K, L, c, sigma): 
+    half_k = K//2
+    out_img = np.copy(img)
 
-    stage_1_denoised_img = denoise_image(img, k, l, c, sigma)
+    for x in range(half_k, img.shape[0] - half_k):
+        for y in range(half_k, img.shape[1] - half_k):
+            for z in range(half_k, img.shape[2] - half_k):
+                out_img[x, y, z] = denoise_one_pixel(img, x, y, z, K, L, c, sigma)
+    
+    return out_img
+
+def denoise_image_gray_scale_two_stage_2D(img, k, l, c, c_s, sigma):
+
+    stage_1_denoised_img = denoise_image_2D(img, k, l, c, sigma)
 
     # should be sigma ** 2?
     sigma_2 = c_s * np.sqrt(sigma - np.mean(
         (img - stage_1_denoised_img)**2)
     )
 
-    stage_2_denoised_img = denoise_image(stage_1_denoised_img, k, l, c, sigma_2)
+    stage_2_denoised_img = denoise_image_2D(stage_1_denoised_img, k, l, c, sigma_2)
     return stage_1_denoised_img, stage_2_denoised_img
 
-def denoise_image_2D(img, k, l, c, c_s, sigma):
-    if img.ndim == 2:    # grey image
-        return denoise_image_gray_scale_two_stage (img, k, l, c, c_s, sigma)
-    else:    # 3 channels image
-        img_r = img[:,:,0]
-        img_g = img[:,:,1]
-        img_b = img[:,:,2]
+def denoise_image_gray_scale_two_stage_3D(img, k, l, c, c_s, sigma):
 
-        stage_1_denoised_img_r, stage_2_denoised_img_r = \
-            denoise_image_gray_scale_two_stage(img_r, k, l, c, c_s, sigma)
-        stage_1_denoised_img_g, stage_2_denoised_img_g = \
-            denoise_image_gray_scale_two_stage(img_g, k, l, c, c_s, sigma)
-        stage_1_denoised_img_b, stage_2_denoised_img_b = \
-            denoise_image_gray_scale_two_stage(img_b, k, l, c, c_s, sigma)
+    stage_1_denoised_img = denoise_image_3D(img, k, l, c, sigma)
 
-        stage_1_denoised_img = np.zeros(img.shape, dtype=np.uint8)
-        stage_1_denoised_img[:,:,2] = stage_1_denoised_img_r
-        stage_1_denoised_img[:,:,1] = stage_1_denoised_img_g
-        stage_1_denoised_img[:,:,0] = stage_1_denoised_img_b
+    print("Finish stage 1")
 
-        stage_2_denoised_img = np.zeros(img.shape, dtype=np.uint8)
-        stage_2_denoised_img[:,:,2] = stage_2_denoised_img_r
-        stage_2_denoised_img[:,:,1] = stage_2_denoised_img_g
-        stage_2_denoised_img[:,:,0] = stage_2_denoised_img_b  
+    # should be sigma ** 2?
+    sigma_2 = c_s * np.sqrt(sigma - np.mean(
+        (img - stage_1_denoised_img)**2)
+    )
 
-        return stage_1_denoised_img, stage_2_denoised_img
+    stage_2_denoised_img = denoise_image_3D(stage_1_denoised_img, k, l, c, sigma_2)
+    print("Finish stage 2")
 
+    return stage_1_denoised_img, stage_2_denoised_img
+
+def denoise_image(img, k, l, c, c_s, sigma, layer_by_layer=False):
+    stage_1_denoised_img = np.zeros(img.shape, dtype=img.dtype)
+    stage_2_denoised_img = np.zeros(img.shape, dtype=img.dtype)
+    if layer_by_layer:
+        # along the z-axis
+        for i in range(img.shape[2]):
+            stage_1_denoised_img[:,:,i] = denoise_image_gray_scale_two_stage_2D(
+                img[:,:,i], k, l, c, c_s, sigma
+            )[0]
+            stage_2_denoised_img[:,:,i] = denoise_image_gray_scale_two_stage_2D(
+                img[:,:,i], k, l, c, c_s, sigma
+            )[1]
+    else:
+        stage_1_denoised_img, stage_2_denoised_img = denoise_image_gray_scale_two_stage_3D(
+            img, k, l, c, c_s, sigma
+        )
+
+    return stage_1_denoised_img, stage_2_denoised_img
+
+def save_nii_img(img, out_path):
+    ni_img = nib.Nifti1Image(img, affine=np.eye(4))
+    nib.save(ni_img, out_path)
 
 def main():
 
@@ -227,22 +297,40 @@ def main():
         for K, L, c, c_s in hyper_param_product:
             logging.info(f"Hyerparameter: K = {K}, L = {L}, c = {c}, c_s = {c_s}")
 
-            # normalize noise
+            # normalize img and add noise
             x = time.time() 
             for img_path in in_images_rel:
 
                 # in original code, denoise on normalized image
                 in_path = os.path.join(args.input_dir, img_path)
-                clean_img = io.imread(in_path).astype('float64')/255.0
-                noisy_img = add_noise(clean_img, sigma)
+                clean_img = nib.load(in_path).get_fdata().astype('float64') / 255.0
 
-                stage_1_denoised_img, stage_2_denoised_img = denoise_image_2D(
-                    noisy_img, K, L, c, c_s, sigma
+                clean_img = clean_img[:, :, :3]
+
+                scaler = MinMaxScaler3D()
+                scaler.fit(clean_img)
+
+                # scale the image to [0, 1]
+                clean_img = scaler.transform(clean_img)
+
+                noisy_img = add_noise(clean_img, sigma)
+    
+                stage_1_denoised_img, stage_2_denoised_img = denoise_image(
+                    noisy_img, K, L, c, c_s, sigma, args.layer_by_layer
                 )         
                 
                 y = time.time()
 
-                n_axis = clean_img.ndim - 1
+                # gray scale 3D image
+                # print(clean_img.dtype)
+                # print(np.max(clean_img), np.min(clean_img))
+
+                # print("="*20)
+
+                # print(stage_1_denoised_img.dtype)
+                # print(np.max(stage_1_denoised_img), np.min(stage_1_denoised_img))
+                
+                n_axis = -1 if not args.layer_by_layer else None
 
                 psnr_stage_1 = round(
                     skim_compare_psnr(clean_img, stage_1_denoised_img), 3
@@ -263,9 +351,13 @@ def main():
                     out_path_1 = os.path.join(out_dir, f"stage_1_k_{K}_l_{L}_c_{c}_{img_path}")
                     out_path_2 = os.path.join(out_dir, f"stage_2_k_{K}_l_{L}_c_{c}_{img_path}")
 
-                    cv2.imwrite(out_path_noisy, noisy_img)
-                    cv2.imwrite(out_path_1, stage_1_denoised_img)      
-                    cv2.imwrite(out_path_2, stage_2_denoised_img)
+                    noisy_img = scaler.inverse_transform(noisy_img)
+                    stage_1_denoised_img = scaler.inverse_transform(stage_1_denoised_img)
+                    stage_2_denoised_img = scaler.inverse_transform(stage_2_denoised_img)
+
+                    save_nii_img(noisy_img, out_path_noisy)
+                    save_nii_img(stage_1_denoised_img, out_path_1)
+                    save_nii_img(stage_2_denoised_img, out_path_2)
 
 if __name__ == "__main__":
     main() 

@@ -1,0 +1,3 @@
+Start denoising with sigma = 10
+Hyerparameter: K = 3, L = 19, c = 8, c_s = 0.35
+Brats18_TCIA13_633_1_t1ce.nii | First stage - PNSR: 31.136, SSIM: 0.823 | Second stage - PNSR: 32.872, SSIM: 0.917 | 10.6141 mins used

@@ -194,12 +194,9 @@ def denoise_one_pixel(img, x, y, K, L, c, sigma):
     
     # All Training features, dim = (-1, K, K)
     all_training_features = get_all_training_features(img, x, y, K, L)
-    # print(all_training_features.shape)
 
     # sort and select top n, dim = (n, K^2)
     PCA_features = get_PCA_training_features(c, K, all_training_features, target_block)
-
-    # print(PCA_features.shape)
 
     # denoise, dim = (K^2, )
     denoise_pixel = PCA_denoise(PCA_features, sigma)

@@ -11,10 +11,24 @@ def skim_compare_psnr(img1, img2):
     return psnr
 
 def skim_compare_ssim(img1, img2, n_axis):
+
+    max_pixel = max(
+        np.max(img1), np.max(img2)
+        )
+    
+    min_pixel = min(
+        np.min(img1), np.min(img2)
+        )
+    
+    data_range = max_pixel - min_pixel
+
     ssim = metrics.structural_similarity(
         img1, img2,
-        sigma=1.5, data_range=2, channel_axis = n_axis,
-        use_sample_covariance=False, gaussian_weights=True
+        # sigma=1.5, 
+        data_range = data_range, 
+        # data_range = 2 ?
+        channel_axis = n_axis,
+        # se_sample_covariance=False, gaussian_weights=True
         )
     return ssim
 

@@ -2,7 +2,28 @@ import numpy as np
 from skimage.util import random_noise
 import cv2
 
+class MinMaxScaler3D:
+    def __init__(self, feature_range=(0, 1)):
+        self.feature_range = feature_range
+        self.min_ = None
+        self.max_ = None
+        self.scale_ = None
 
+    def fit(self, X):
+        self.min_ = np.min(X)
+        self.max_ = np.max(X)
+
+        # Compute the scaling factor
+        range_min, range_max = self.feature_range
+        self.scale_ = (range_max - range_min) / (self.max_ - self.min_)
+
+    def transform(self, X):
+        # Apply the scaling transformation
+        return (X - self.min_) * self.scale_ + self.feature_range[0]
+
+    def inverse_transform(self, X):
+        # Apply the inverse scaling transformation
+        return (X - self.feature_range[0]) / self.scale_ + self.min_
 
 def load_gray_img(filepath):
     img = cv2.imread(
