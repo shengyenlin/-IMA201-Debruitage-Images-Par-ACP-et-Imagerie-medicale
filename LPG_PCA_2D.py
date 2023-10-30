@@ -26,7 +26,6 @@ def parse_args():
     parser.add_argument("--log_name", type=str, default="experiment_log.txt")
 
     parser.add_argument("--input_dir", type=Path, default="./input/clean")
-    parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images")
     parser.add_argument("--output_dir", type=Path, default="./output")
 
     # hyperparameter
@@ -34,6 +33,11 @@ def parse_args():
     parser.add_argument("--Ls", type=int, nargs="+", default=9)
     parser.add_argument("--cs", type= int, nargs="+", default=8)
     parser.add_argument("--c_s", help="estimation error of noiseless images", default=0.35, nargs="+", type=float)
+
+    # noise
+    parser.add_argument("--noise_type", type=str, default="gaussian")
+    parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images when using gaussian noise")
+    parser.add_argument("--prob", type=float, nargs="+", default=0.05, help="probability of adding a noise, when using salt and pepper noise")
 
     parser.add_argument("--store_image", action='store_true')
 
@@ -88,7 +92,12 @@ def get_PCA_training_features(c, K, training_features, target):
 
     # Sort by MSE
     cm = c * (K ** 2)
-    n = cm if cm < training_features.shape[0] else training_features.shape[0]
+    n = training_features.shape[0]
+
+    # border problem
+    # if we don't have enough samples (cm), we use all of them
+    # if we have, then we use 'cm' samples
+    num_select_feat = cm if cm < n else n
 
     square_err = ((training_features - target)**2)
     mse = np.mean(
@@ -98,8 +107,8 @@ def get_PCA_training_features(c, K, training_features, target):
     sort_indexes = np.argsort(mse)
 
     # (n, K^2)
-    training_features_PCA = training_features[sort_indexes[:n], :, :] \
-        .reshape(n, target.shape[0]**2)
+    training_features_PCA = training_features[sort_indexes[:num_select_feat], :, :] \
+        .reshape(num_select_feat, target.shape[0]**2)
     return training_features_PCA
 
 def PCA_denoise(X, sigma):
@@ -143,9 +152,8 @@ def denoise_one_pixel(img, x, y, K, L, c, sigma):
     # Block centered around x,y, dim = (K, K)
     target_block = get_block_for_one_pixel(img, x, y, half_k)
     
-    # All Training features, dim = (-1, K, K)
+    # All Training features, dim = ((L-K+1)*(L-K+1), K, K)
     all_training_features = get_all_training_features(img, x, y, K, L)
-    # print(all_training_features.shape)
 
     # sort and select top n, dim = (n, K^2)
     PCA_features = get_PCA_training_features(c, K, all_training_features, target_block)

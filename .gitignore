@@ -1,3 +1,7 @@
-input/
-output/
+input/*
+output/*
+output_3D/*
 IMA201_Medical_images/*
+log_set12/*
+set12/*
+*.pdf

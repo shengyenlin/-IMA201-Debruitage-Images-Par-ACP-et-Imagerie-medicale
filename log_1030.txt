@@ -1,0 +1,2 @@
+Start denoising with sigma = 10
+Hyerparameter: K = 3, L = 19, c = 8, c_s = 0.35
