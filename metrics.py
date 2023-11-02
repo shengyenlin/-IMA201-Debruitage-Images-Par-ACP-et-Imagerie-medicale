@@ -25,7 +25,7 @@ def skim_compare_ssim(img1, img2, n_axis):
     ssim = metrics.structural_similarity(
         img1, img2,
         # sigma=1.5, 
-        data_range = data_range, 
+        # data_range = data_range, 
         # TODO:?
         data_range = 2,
         channel_axis = n_axis,

@@ -1,7 +1,9 @@
-input/*
-output/*
-output_3D/*
-IMA201_Medical_images/*
-log_set12/*
-set12/*
+IMA201_Medical_images/
+input/
+
+output/gauss_10/
+
+output_3D/
+log_set12/
+set12/
 *.pdf
