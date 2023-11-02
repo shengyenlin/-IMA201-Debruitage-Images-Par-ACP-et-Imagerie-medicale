@@ -2,7 +2,7 @@
 
 ## Environment
 
-### Python=3.10.13
+Python=3.10.13
 ### matplotlib=3.8.0
 ### networkx=3.1
 ### numpy=1.26.0
