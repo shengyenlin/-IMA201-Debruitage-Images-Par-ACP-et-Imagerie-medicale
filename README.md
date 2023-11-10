@@ -21,5 +21,7 @@ Set the value of hyperparameters in .bash file, where
 * c_s : estimation error of noiseless images
 * sigma : noise level of images when using gaussian noise
 
+To test the code on 2D image, run "bash lpg_pca_2D.bash";  To test the code on 3D image, run "bash lpg_pca_3D.bash".
+
 
 [1] Lei Zhang, Weisheng Dong, David Zhang, and Guangming Shi. Two-stage image denoising by principal component analysis with local pixel grouping. Pattern Recognition, 43(4):1531-1549, 2010.
