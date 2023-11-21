@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import time
 from itertools import product
+import nibabel as nib
 
 import logging
 
@@ -36,7 +37,7 @@ def parse_args():
 
     # noise
     parser.add_argument("--noise_type", type=str, default="gaussian")
-    parser.add_argument("--sigmas", type=int, nargs="+", help = "noise level of images when using gaussian noise")
+    parser.add_argument("--sigmas", type=float, nargs="+", help = "noise level of images when using gaussian noise")
     parser.add_argument("--prob", type=float, nargs="+", default=0.05, help="probability of adding a noise, when using salt and pepper noise")
 
     parser.add_argument("--store_image", action='store_true')
@@ -182,6 +183,10 @@ def denoise_image_gray_scale_two_stage(img, k, l, c, c_s, sigma):
 
     stage_2_denoised_img = denoise_image(stage_1_denoised_img, k, l, c, sigma_2)
     return stage_1_denoised_img, stage_2_denoised_img
+def save_nii_img(img, out_path):
+    ni_img = nib.Nifti1Image(img, affine=np.eye(4))
+    nib.save(ni_img, out_path)
+
 
 def denoise_image_2D(img, k, l, c, c_s, sigma):
     if img.ndim == 2:    # grey image
@@ -241,8 +246,14 @@ def main():
 
                 # in original code, denoise on normalized image
                 in_path = os.path.join(args.input_dir, img_path)
-                clean_img = io.imread(in_path).astype('float64')/255.0
-                noisy_img = add_noise(clean_img, sigma)
+                # print(in_path)
+                # clean_img = io.imread(in_path).astype('float64')/255.0
+
+                clean_img = nib.load(in_path).get_fdata().astype('float64')/255.0
+
+                # real noisy image
+                # noisy_img = clean_img 
+                noisy_img = add_noise(clean_img, sigma=0.00001)
 
                 stage_1_denoised_img, stage_2_denoised_img = denoise_image_2D(
                     noisy_img, K, L, c, c_s, sigma
@@ -271,9 +282,13 @@ def main():
                     out_path_1 = os.path.join(out_dir, f"stage_1_k_{K}_l_{L}_c_{c}_{img_path}")
                     out_path_2 = os.path.join(out_dir, f"stage_2_k_{K}_l_{L}_c_{c}_{img_path}")
 
-                    cv2.imwrite(out_path_noisy, noisy_img)
-                    cv2.imwrite(out_path_1, stage_1_denoised_img)      
-                    cv2.imwrite(out_path_2, stage_2_denoised_img)
+                    # cv2.imwrite(out_path_noisy, noisy_img)
+                    # cv2.imwrite(out_path_1, stage_1_denoised_img)      
+                    # cv2.imwrite(out_path_2, stage_2_denoised_img)
+
+                    save_nii_img(noisy_img, out_path_noisy)
+                    save_nii_img(stage_1_denoised_img, out_path_1)
+                    save_nii_img(stage_2_denoised_img, out_path_2)
 
 if __name__ == "__main__":
     main() 

@@ -7,3 +7,5 @@ output_3D/
 log_set12/
 set12/
 *.pdf
+
+*.nii
